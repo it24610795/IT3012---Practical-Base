@@ -82,6 +82,13 @@ class VisualGridHuntGame:
         if tuple_pos in self.food_positions:
             self.food_positions.remove(tuple_pos)
             self.score += 20
+        
+        # Toxic Trap check
+        if tuple_pos in self.toxic_traps:
+            self.toxic_traps.remove(tuple_pos)
+            self.score -= 15
+
+
 
         for op in self.opponents:
             move = random.choice(['Up', 'Down', 'Left', 'Right', 'Stay'])
@@ -105,7 +112,7 @@ class VisualGridHuntGame:
 class GridGameGUI:
     """Tkinter wrapper that dynamically scales cell sizes to keep larger grids on screen."""
 
-    def __init__(self, root, width=10, height=10, num_food=12, num_opponents=2, walls=None):
+    def __init__(self, root, width=10, height=10, num_food=12, num_opponents=2, walls=None,num_traps =5):
         self.root = root
         self.root.title("IT3012 - Scalable Multi-Agent Grid Hunt")
 
@@ -162,6 +169,14 @@ class GridGameGUI:
             y1 = (self.env.height - 1 - oy) * self.cell_size + offset
             self.canvas.create_rectangle(x1, y1, x1 + self.cell_size * 0.6, y1 + self.cell_size * 0.6, fill="#990000",
                                          outline="#7a0000")
+        
+        for tx, ty in self.env.toxic_traps:
+            offset = self.cell_size * 0.25
+            x1 = tx * self.cell_size + offset
+            y1 = (self.env.height -1 - ty) * self.cell_size+ offset
+            self.canvas.create_oval(x1, y1, x1 +self.cell_size *0.5, y1+ self.cell_size * 0.5, fill="#a855f7",
+                                    outline="#7e22ce")
+            
 
         ax, ay = self.env.agent_pos
         offset = self.cell_size * 0.15
@@ -192,5 +207,5 @@ class GridGameGUI:
 if __name__ == "__main__":
     root = tk.Tk()
     # Try a larger grid size like 12x12 with 15 food and 3 opponents!
-    app = GridGameGUI(root, width=12, height=12, num_food=15, num_opponents=0)
+    app = GridGameGUI(root, width=12, height=12, num_food=15, num_opponents=2, num_traps =5)
     root.mainloop()
