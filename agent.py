@@ -1,4 +1,5 @@
 # agent.py
+import math
 import random
 from collections import deque
 import heapq
@@ -78,14 +79,22 @@ class ModelBasedAgent:
 
 class SearchAgent:
     """
-    Goal-Based / Planning Agent for Practical 03 implementing
-    Breadth-First Search (BFS), Depth-First Search (DFS), and Uniform-Cost Search (UCS).
+    Search agent supporting both Uninformed Search (BFS, DFS, UCS)
+    and Informed Search (A* with Manhattan and Euclidean heuristics).
     """
 
     def __init__(self):
         self.plan = []
-        # Switch between 'BFS', 'DFS', and 'UCS' to evaluate path execution
-        self.active_algo = 'BFS'
+        # Options: 'BFS', 'DFS', 'UCS', 'AStar'
+        self.active_algo = 'AStar'
+
+    def manhattan_distance(self, pos, goal) -> int:
+        """Calculates 4-way grid distance: |x1 - x2| + |y1 - y2|."""
+        return abs(pos[0] - goal[0]) + abs(pos[1] - goal[1])
+
+    def euclidean_distance(self, pos, goal) -> float:
+        """Calculates straight-line distance: sqrt((x1 - x2)^2 + (y1 - y2)^2)."""
+        return math.sqrt((pos[0] - goal[0]) ** 2 + (pos[1] - goal[1]) ** 2)
 
     def bfs_search(self, start_pos, goal_pos, walls, grid_size) -> list:
         start = tuple(start_pos)
@@ -98,17 +107,11 @@ class SearchAgent:
 
         while queue:
             current, path = queue.popleft()
-
             if current == goal:
                 return path
 
             x, y = current
-            moves = [
-                ('Up', (x, y + 1)),
-                ('Down', (x, y - 1)),
-                ('Left', (x - 1, y)),
-                ('Right', (x + 1, y))
-            ]
+            moves = [('Up', (x, y + 1)), ('Down', (x, y - 1)), ('Left', (x - 1, y)), ('Right', (x + 1, y))]
 
             for action, next_pos in moves:
                 nx, ny = next_pos
@@ -116,7 +119,6 @@ class SearchAgent:
                     if next_pos not in visited:
                         visited.add(next_pos)
                         queue.append((next_pos, path + [action]))
-
         return []
 
     def dfs_search(self, start_pos, goal_pos, walls, grid_size) -> list:
@@ -130,17 +132,11 @@ class SearchAgent:
 
         while stack:
             current, path = stack.pop()
-
             if current == goal:
                 return path
 
             x, y = current
-            moves = [
-                ('Up', (x, y + 1)),
-                ('Down', (x, y - 1)),
-                ('Left', (x - 1, y)),
-                ('Right', (x + 1, y))
-            ]
+            moves = [('Up', (x, y + 1)), ('Down', (x, y - 1)), ('Left', (x - 1, y)), ('Right', (x + 1, y))]
 
             for action, next_pos in moves:
                 nx, ny = next_pos
@@ -148,7 +144,6 @@ class SearchAgent:
                     if next_pos not in visited:
                         visited.add(next_pos)
                         stack.append((next_pos, path + [action]))
-
         return []
 
     def ucs_search(self, start_pos, goal_pos, walls, grid_size) -> list:
@@ -163,19 +158,13 @@ class SearchAgent:
 
         while pq:
             cost, _, current, path = heapq.heappop(pq)
-
             if current == goal:
                 return path
 
             if current not in visited:
                 visited.add(current)
                 x, y = current
-                moves = [
-                    ('Up', (x, y + 1)),
-                    ('Down', (x, y - 1)),
-                    ('Left', (x - 1, y)),
-                    ('Right', (x + 1, y))
-                ]
+                moves = [('Up', (x, y + 1)), ('Down', (x, y - 1)), ('Left', (x - 1, y)), ('Right', (x + 1, y))]
 
                 for action, next_pos in moves:
                     nx, ny = next_pos
@@ -183,9 +172,59 @@ class SearchAgent:
                         if next_pos not in visited:
                             counter += 1
                             heapq.heappush(pq, (cost + 1, counter, next_pos, path + [action]))
-
         return []
 
+    def astar_search(self, start_pos, goal_pos, walls, grid_size, heuristic_type='manhattan') -> list:
+        start = tuple(start_pos)
+        goal = tuple(goal_pos)
+        walls_set = set(tuple(w) for w in walls)
+        width, height = grid_size
+
+        # Select heuristic function
+        if heuristic_type == 'euclidean':
+            h = self.euclidean_distance
+        else:
+            h = self.manhattan_distance
+
+        reached_states = set()
+        # Tuple format: (f_cost, g_cost, current_pos, path_taken)
+        g_start = 0
+        h_start = h(start, goal)
+        f_start = g_start + h_start
+
+        pq = [(f_start, g_start, start, [])]
+
+        while pq:
+            f_cost, g_cost, current_pos, path_taken = heapq.heappop(pq)
+
+            if current_pos == goal:
+                return path_taken
+
+            if current_pos in reached_states:
+                continue
+
+            reached_states.add(current_pos)
+
+            x, y = current_pos
+            moves = [
+                ('Up', (x, y + 1)),
+                ('Down', (x, y - 1)),
+                ('Left', (x - 1, y)),
+                ('Right', (x + 1, y))
+            ]
+
+            for action, next_pos in moves:
+                nx, ny = next_pos
+                # Boundary, wall, and closed-set checks
+                if 0 <= nx < width and 0 <= ny < height and next_pos not in walls_set:
+                    if next_pos not in reached_states:
+                        g_new = g_cost + 1
+                        h_new = h(next_pos, goal)
+                        f_new = g_new + h_new
+                        heapq.heappush(pq, (f_new, g_new, next_pos, path_taken + [action]))
+
+        return []
+    
     def sense_and_act(self, percept: dict) -> str:
         if not self.plan:
             agent_pos = tuple(percept.get('agent_pos', [0, 0]))
@@ -196,10 +235,10 @@ class SearchAgent:
             if not all_food:
                 return 'Stay'
 
-            # Target the closest food pellet by Manhattan distance
+            # Target the closest food item using Manhattan distance
             closest_food = min(
                 all_food,
-                key=lambda f: abs(f[0] - agent_pos[0]) + abs(f[1] - agent_pos[1])
+                key=lambda f: self.manhattan_distance(agent_pos, f)
             )
 
             if self.active_algo == 'BFS':
@@ -208,6 +247,10 @@ class SearchAgent:
                 self.plan = self.dfs_search(agent_pos, closest_food, walls, grid_size)
             elif self.active_algo == 'UCS':
                 self.plan = self.ucs_search(agent_pos, closest_food, walls, grid_size)
+            elif self.active_algo == 'AStar':
+                self.plan = self.astar_search(
+                    agent_pos, closest_food, walls, grid_size, heuristic_type='manhattan'
+                )
 
         if self.plan:
             return self.plan.pop(0)
